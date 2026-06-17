@@ -1,4 +1,3 @@
-import { head } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
@@ -6,9 +5,12 @@ export async function GET(req: NextRequest) {
   if (!url) return NextResponse.json({ error: "Missing url" }, { status: 400 });
 
   try {
-    // verify blob exists and belongs to our store
-    await head(url);
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`,
+      },
+    });
+    if (!res.ok) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const text = await res.text();
     return new NextResponse(text, { headers: { "Content-Type": "text/plain" } });
   } catch {
