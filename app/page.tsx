@@ -52,7 +52,7 @@ export default function Home() {
     setLoading(true);
     setContent("");
     try {
-      const res = await fetch(file.url);
+      const res = await fetch(`/api/content?url=${encodeURIComponent(file.url)}`);
       setContent(await res.text());
     } catch {
       setContent("Failed to load file.");
@@ -242,7 +242,7 @@ export default function Home() {
                 <div style={{ color: "var(--muted)", fontSize: "0.8rem" }}>{formatDate(active.uploadedAt)} · {formatSize(active.size)}</div>
               </div>
               <a
-                href={active.url}
+                href={`/api/content?url=${encodeURIComponent(active.url)}`}
                 download={active.name}
                 style={{ color: "var(--accent)", fontSize: "0.8rem", textDecoration: "none", flexShrink: 0, paddingTop: 4 }}
               >
