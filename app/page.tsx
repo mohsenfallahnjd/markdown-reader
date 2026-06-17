@@ -33,13 +33,14 @@ export default function Home() {
   const [content, setContent] = useState("");
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const fetchFiles = useCallback(async () => {
     try {
-      const res = await fetch("/api/files");
+      const res = await fetch("/api/files", { signal: AbortSignal.timeout(8000) });
       if (res.ok) setFiles(await res.json());
     } catch {}
   }, []);
@@ -60,26 +61,45 @@ export default function Home() {
     }
   }, []);
 
-  const upload = useCallback(async (file: File) => {
+  const upload = useCallback((file: File) => {
     if (!file.name.endsWith(".md")) {
       setError("Only .md files supported.");
       return;
     }
-    setUploading(true);
     setError("");
+    setUploading(true);
+    setUploadProgress(0);
+
     const form = new FormData();
     form.append("file", file);
-    try {
-      const res = await fetch("/api/upload", { method: "POST", body: form });
-      if (!res.ok) throw new Error();
-      const entry: FileEntry = await res.json();
-      await fetchFiles();
-      openFile(entry);
-    } catch {
-      setError("Upload failed.");
-    } finally {
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100));
+    };
+
+    xhr.onload = async () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        setUploadProgress(100);
+        const entry: FileEntry = JSON.parse(xhr.responseText);
+        await fetchFiles();
+        openFile(entry);
+      } else {
+        setError("Upload failed.");
+      }
       setUploading(false);
-    }
+      setUploadProgress(0);
+    };
+
+    xhr.onerror = () => {
+      setError("Upload failed.");
+      setUploading(false);
+      setUploadProgress(0);
+    };
+
+    xhr.send(form);
   }, [fetchFiles, openFile]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -139,7 +159,20 @@ export default function Home() {
               onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }}
             />
             {uploading ? (
-              <span style={{ color: "var(--muted)", fontSize: "0.8rem" }}>Uploading…</span>
+              <div style={{ width: "100%" }}>
+                <div style={{ color: "var(--muted)", fontSize: "0.75rem", marginBottom: 8 }}>
+                  Uploading… {uploadProgress}%
+                </div>
+                <div style={{ background: "var(--border)", borderRadius: 4, height: 4, overflow: "hidden" }}>
+                  <div style={{
+                    height: "100%",
+                    width: `${uploadProgress}%`,
+                    background: "var(--accent)",
+                    borderRadius: 4,
+                    transition: "width 0.15s ease",
+                  }} />
+                </div>
+              </div>
             ) : (
               <>
                 <div style={{ color: "var(--accent)", marginBottom: 4 }}>
